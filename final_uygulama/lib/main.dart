@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+//import 'package:google_sign_in/google_sign_in.dart';
+import 'database_helper.dart';
+import 'dart:async';
 
 void main() {
   runApp(const QueensGameApp());
@@ -862,8 +865,8 @@ class _QueensGameState extends State<QueensGame> {
     bool control = true;
     // Aynı satırda veya sütunda başka yıldız var mı kontrolü
     for (int i = 0; i < gridSize; i++) {
-      if ((i != col && board[row][i] == 2) ||
-          (i != row && board[i][col] == 2)) {
+      if ((i != col && board[row][i] == 51) ||
+          (i != row && board[i][col] == 51)) {
         control = false;
         return true;
       }
@@ -910,30 +913,299 @@ class _QueensGameState extends State<QueensGame> {
 
   bool finishgamecontroller = false;
 
-  void _showWinDialog() {
+  Timer? gameTimer;
+  int elapsedSeconds = 0;
+  bool gameStarted = false;
+
+  void startGame() {
+    if (_userName == null || _userName!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lütfen önce giriş yapın.')),
+      );
+      return;
+    }
+    if (!gameStarted) {
+      gameStarted = true;
+      startTime = DateTime.now();
+      elapsedSeconds = 0;
+      gameTimer?.cancel();
+      gameTimer = Timer.periodic(Duration(seconds: 1), (_) {
+        setState(() {
+          elapsedSeconds = DateTime.now().difference(startTime!).inSeconds;
+        });
+      });
+    }
+  }
+
+  void resetGame() {
+    setState(() {
+      gameStarted = false;
+      elapsedSeconds = 0;
+      gameTimer?.cancel();
+      board = List.generate(9, (_) => List.filled(9, 0));
+      gameWon = false;
+      finishgamecontroller = false;
+
+      startGame();
+    });
+  }
+
+  void switchMap() {
+    setState(() {
+      currentTemplateIndex = (currentTemplateIndex + 1) % templates.length;
+      gameTemplateIndex = (gameTemplateIndex + 1) % maps.length;
+      resetGame();
+    });
+  }
+
+  int calculateScore() {
+    if (elapsedSeconds <= 2 * 60) {
+      return 100;
+    } else if (elapsedSeconds <= 5 * 60) {
+      return 75;
+    } else {
+      return 50;
+    }
+  }
+
+  void handleWin() {
+    setState(() {
+      gameStarted = false;
+      gameTimer?.cancel();
+      gameWon = true;
+    });
+
+    int score = calculateScore();
+    _saveScore(score, currentTemplateIndex);
+
+    _showWinDialog(score, elapsedSeconds);
+  }
+
+  void _showWinDialog(int score, int timeSeconds) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (context) {
         return AlertDialog(
           title: const Text('Tebrikler!'),
-          content: const Text('Oyunu kazandınız!'),
+          content: Text(
+              'Oyunu kazandınız!\nSkor: $score\nSüre: ${timeSeconds ~/ 60} dk ${timeSeconds % 60} sn'),
           actions: [
             TextButton(
-              child: const Text('Tamam'),
               onPressed: () {
                 Navigator.of(context).pop();
-                setState(() {
-                  board = List.generate(
-                      9, (_) => List.filled(9, 0)); // Oyunu sıfırla
-                  gameWon = false; // Kazanma durumunu sıfırla
-                });
+                resetGame();
               },
+              child: const Text('Tamam'),
             ),
           ],
         );
       },
     );
   }
+
+  DateTime? startTime;
+
+  // Bölüm başladığında çağır
+  void startGameTimer() {
+    startTime = DateTime.now();
+  }
+
+  // Bölüm bittiğinde çağır
+  int calculateFinalScore() {
+    if (startTime == null) return 0;
+    int elapsedSeconds = DateTime.now().difference(startTime!).inSeconds;
+
+    if (elapsedSeconds <= 2 * 60) {
+      return 100;
+    } else if (elapsedSeconds <= 5 * 60) {
+      return 75;
+    } else {
+      return 50;
+    }
+  }
+
+  //final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+
+  //GoogleSignInAccount? _user;
+
+  String? _userName;
+
+//Kullanıcı adı alınır
+  Future<void> _promptForUsername() async {
+    String tempName = '';
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Kullanıcı Adınızı Girin'),
+          content: TextField(
+            onChanged: (value) {
+              tempName = value;
+            },
+            decoration: const InputDecoration(hintText: "Kullanıcı adı"),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                if (tempName.trim().isNotEmpty) {
+                  setState(() {
+                    _userName = tempName.trim();
+                  });
+                  startGame();
+                }
+                Navigator.of(context).pop();
+              },
+              child: const Text('Kaydet'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _resetUsername() async {
+    setState(() {
+      // _user = null;  // Eğer kullanıcı bilgisi burada tutuluyorsa sıfırla
+      _userName = null; // Eklediysen kendi username değişkenini de sıfırla
+    });
+  }
+
+  // Future<void> _saveScore(int score, int templateId) async {
+  //   String userId;
+  //   String userName;
+
+  //   if (_user != null) {
+  //     userId = _user!.id;
+  //     userName = _user!.displayName ?? 'Unknown';
+  //   } else {
+  //     userId = 'anonymous';
+  //     userName = 'Anonymous';
+
+  //     // Anonim kullanıcıyı sadece bir kez kaydetmek istersen, önce var mı diye kontrol eklersin.
+  //     await _dbHelper.insertUser(userId, userName);
+  //   }
+
+  //   await _dbHelper.insertScore(userId, score, templateId);
+  // }
+
+  Future<void> _showAllScores() async {
+    List<Map<String, dynamic>> scores = await _dbHelper.getAllScores();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Tüm Skorlar'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: scores.map((s) {
+                return ListTile(
+                  title: Text('Kullanıcı: ${s['userName']}'),
+                  subtitle: Text(
+                    'Template: ${s['templateId'] + 1}, Puan: ${s['score']}, Zaman: ${DateTime.fromMillisecondsSinceEpoch(s['timestamp'])}',
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Tamam'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _saveScore(int score, int templateId) async {
+    String userName = _userName ?? 'Anonim';
+    await _dbHelper.insertScore(userName, score, templateId);
+  }
+
+  Future<void> _showMyScores() async {
+    List<Map<String, dynamic>> scores =
+        await _dbHelper.getUserScores(_userName ?? 'Anonim');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Puanlarım'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: scores.map((s) {
+                return ListTile(
+                  // title: Text('Template ${s['templateId']}'),
+                  title: Text('Template ${s['templateId'] + 1}'),
+                  subtitle: Text('Puan: ${s['score']}'),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Tamam'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showTopScores() async {
+    List<Map<String, dynamic>> topScores = await _dbHelper.getTopScores();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Top Scores'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: topScores.map((s) {
+                return ListTile(
+                  title: Text('${s['userName']}'),
+                  subtitle: Text('Toplam Puan: ${s['totalScore']}'),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Tamam'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Future<void> _signInWithGoogle() async {
+  //   try {
+  //     GoogleSignInAccount? account = await _googleSignIn.signIn();
+  //     if (account != null) {
+  //       setState(() {
+  //         _user = account;
+  //       });
+  //       await _dbHelper.insertUser(
+  //           account.id, account.displayName ?? 'Unknown');
+  //     }
+  //   } catch (e) {
+  //     print('Google ile giriş yapılırken hata oluştu: $e');
+  //   }
+  // }
+
+  // Future<void> _signOut() async {
+  //   await _googleSignIn.signOut();
+  //   setState(() {
+  //     _user = null;
+  //   });
+  // }
 
   void checkWinCondition() {
     Set<String> queensInRows = {}; // Satırlardaki taçların konumunu takip et
@@ -965,7 +1237,10 @@ class _QueensGameState extends State<QueensGame> {
         uniqueColors.length == gridSize &&
         !hasInvalidPosition) {
       gameWon = true; // Oyunu kazandınız
-      _showWinDialog(); // Kazanma diyalogunu göster
+
+      int score = calculateScore();
+      _saveScore(score, currentTemplateIndex);
+      _showWinDialog(score, elapsedSeconds);
     }
   }
 
@@ -1004,14 +1279,6 @@ class _QueensGameState extends State<QueensGame> {
     );
   }
 
-  void resetGame() {
-    setState(() {
-      board = List.generate(9, (_) => List.filled(9, 0)); // Oyunu sıfırla
-      gameWon = false; // Kazanma durumunu sıfırla
-      finishgamecontroller = false;
-    });
-  }
-
   void nextTemplate() {
     setState(() {
       currentTemplateIndex =
@@ -1035,15 +1302,29 @@ class _QueensGameState extends State<QueensGame> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Queens Game'),
+        actions: [
+          TextButton(
+            onPressed: _userName != null
+                ? () async {
+                    await _showMyScores();
+                  }
+                : null,
+            child: const Text('Skorlarım'),
+          ),
+          TextButton(
+            onPressed: _showAllScores,
+            child: const Text('Global Skorlar'),
+          ),
+        ],
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text(
-              'Farklı Renk Şablonları',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
+            // const Text(
+            //   'Farklı Renk Şablonları',
+            //   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            // ),
 
             Expanded(
               child: GridView.builder(
@@ -1058,9 +1339,8 @@ class _QueensGameState extends State<QueensGame> {
                       board[row][col] == 2 && isInvalidStarPosition(row, col);
 
                   return GestureDetector(
-                    onTap: gameWon
-                        ? null
-                        : () {
+                    onTap: (gameStarted && !gameWon)
+                        ? () {
                             setState(() {
                               if (board[row][col] == 0) {
                                 board[row][col] = 1; // X koy
@@ -1071,7 +1351,8 @@ class _QueensGameState extends State<QueensGame> {
                               }
                               checkWinCondition();
                             });
-                          },
+                          }
+                        : null,
                     child: Stack(
                       children: [
                         Container(
@@ -1116,32 +1397,87 @@ class _QueensGameState extends State<QueensGame> {
                 },
               ),
             ),
-            // Template indexini göster
+            // Bölüm ve Oyun Kuralları yan yana
             Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                'Bölüm: ${currentTemplateIndex + 1}/${templates.length}',
-                style: const TextStyle(fontSize: 18),
+              padding: const EdgeInsets.only(
+                  top: 8.0, left: 8.0, right: 8.0, bottom: 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Text(
+                    'Bölüm: ${currentTemplateIndex + 1}/${templates.length}',
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                  ElevatedButton(
+                    onPressed: showGameRules,
+                    child: const Text('Oyun Kuralları'),
+                  ),
+                ],
               ),
             ),
-            // Oyun kurallarını gösteren buton
-            ElevatedButton(
-              onPressed: showGameRules,
-              child: const Text('Oyun Kurallarını Göster'),
+
+            // Alt satırda: Önceki ve Sonraki Bölüm butonları
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: previousTemplate,
+                      child: const Text('Önceki Bölüm',
+                          textAlign: TextAlign.center),
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: nextTemplate,
+                      child: const Text('Sonraki Bölüm',
+                          textAlign: TextAlign.center),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            // Geçiş butonları
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton(
-                  onPressed: previousTemplate,
-                  child: const Text('Önceki Bölüm'),
-                ),
-                ElevatedButton(
-                  onPressed: nextTemplate,
-                  child: const Text('Sonraki Bölüm'),
-                ),
-              ],
+
+            // Giriş Yap butonu (yeni eklenen)
+            Padding(
+              padding: const EdgeInsets.only(top: 0), // 16 yerine 0
+              // padding: const EdgeInsets.only(top: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    icon: Icon(Icons.person),
+                    label: Text('Giriş Yap'),
+                    onPressed: _promptForUsername,
+                    style: ElevatedButton.styleFrom(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      textStyle: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                  SizedBox(width: 16), // İki buton arasına boşluk
+                  ElevatedButton.icon(
+                    icon: Icon(Icons.logout),
+                    label: Text('Çıkış Yap'),
+                    onPressed: _resetUsername,
+                    style: ElevatedButton.styleFrom(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      textStyle: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Text(
+                _userName != null ? '$_userName' : 'Anonim',
+                style: TextStyle(fontSize: 16),
+              ),
             ),
           ],
         ),
