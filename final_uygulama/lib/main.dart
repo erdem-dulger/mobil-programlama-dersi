@@ -1262,7 +1262,8 @@ class _QueensGameState extends State<QueensGame> {
                 Text('Her satırda yalnızca bir Queen olabilir.'),
                 Text('Her sütunda yalnızca bir Queen olabilir.'),
                 Text('Her renk bölgesinde yalnızca bir Queen olabilir.'),
-                Text('İki Queen birbirlerine çapraz olarak bile temas edemez.'),
+                Text(
+                    '4. Oyuna başlamak için önce giriş yapmanız gerekmektedir. Giriş yaptıktan sonra oyun otomatik olarak başlayacaktır.'),
               ],
             ),
           ),
