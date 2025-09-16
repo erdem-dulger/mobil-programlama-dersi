@@ -1254,14 +1254,15 @@ class _QueensGameState extends State<QueensGame> {
             child: ListBody(
               children: [
                 Text(
-                    '1. Amacınız her satır, sütun ve renk bölgesinde tam olarak bir Queen olmasını sağlamaktır.'),
+                    '1. Amacınız her satır, her sütun ve her renk bölgesinde yalnızca bir adet Queen (yıldız ikonu) olmasını sağlamaktır.'),
                 Text(
-                    '2. X yerleştirmek için bir kez, Queen için iki kez dokunun. Queen yerleştirilemeyecek yerleri işaretlemek için X’i kullanın.'),
+                    '2. X yerleştirmek için bir kez, Queen (yıldız ikonu) yerleştirmek için iki kez dokunun. Queen (yıldız ikonu) yerleştirilemeyecek yerleri işaretlemek için X’i kullanın.'),
                 Text(
-                    '3. İki Queen birbirlerine çapraz olarak bile temas edemez.'),
-                Text('Her satırda yalnızca bir Queen olabilir.'),
-                Text('Her sütunda yalnızca bir Queen olabilir.'),
-                Text('Her renk bölgesinde yalnızca bir Queen olabilir.'),
+                    '3. İki Queen (yıldız ikonu) birbirlerine çapraz olarak bile temas edemez.'),
+                Text('Her satırda yalnızca bir Queen (yıldız ikonu) olabilir.'),
+                Text('Her sütunda yalnızca bir Queen (yıldız ikonu) olabilir.'),
+                Text(
+                    'Her renk bölgesinde yalnızca bir Queen (yıldız ikonu) olabilir.'),
                 Text(
                     '4. Oyuna başlamak için önce giriş yapmanız gerekmektedir. Giriş yaptıktan sonra oyun otomatik olarak başlayacaktır.'),
               ],
